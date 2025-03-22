@@ -1,0 +1,168 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model BusinessProfile {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessName String @map("business_name") @db.VarChar(255)
+  rnc       String   @unique @db.VarChar(20)
+  email     String   @unique @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  users     User[]
+  products  Product[]
+  sales     Sale[]
+  inventoryMovements InventoryMovement[]
+  taxConfigurations TaxConfiguration[]
+  fiscalSequences   FiscalSequence[]
+
+  @@map("business_profiles")
+}
+
+model Role {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String   @unique @db.VarChar(50)
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  users       User[]
+
+  @@map("roles")
+}
+
+model User {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email             String   @unique @db.VarChar(255)
+  businessProfileId String?  @map("business_profile_id") @db.Uuid
+  roleId            String?  @map("role_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  businessProfile   BusinessProfile? @relation(fields: [businessProfileId], references: [id])
+  role              Role?           @relation(fields: [roleId], references: [id])
+
+  @@map("users")
+}
+
+model Product {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name              String   @db.VarChar(255)
+  description       String?
+  sku               String?  @unique @db.VarChar(50)
+  price             Decimal  @db.Decimal(10,2)
+  cost              Decimal? @db.Decimal(10,2)
+  stock             Int      @default(0)
+  businessProfileId String   @map("business_profile_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  businessProfile   BusinessProfile     @relation(fields: [businessProfileId], references: [id])
+  saleItems         SaleItem[]
+  inventoryMovements InventoryMovement[]
+
+  @@map("products")
+}
+
+model Sale {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessProfileId String   @map("business_profile_id") @db.Uuid
+  totalAmount       Decimal  @map("total_amount") @db.Decimal(10,2)
+  paymentMethod     String   @map("payment_method") @db.VarChar(50)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  businessProfile   BusinessProfile @relation(fields: [businessProfileId], references: [id])
+  saleItems         SaleItem[]
+  fiscalDocuments   FiscalDocument[]
+
+  @@map("sales")
+}
+
+model SaleItem {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  saleId      String   @map("sale_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  quantity    Int
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(10,2)
+  totalPrice  Decimal  @map("total_price") @db.Decimal(10,2)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  sale        Sale    @relation(fields: [saleId], references: [id])
+  product     Product @relation(fields: [productId], references: [id])
+
+  @@map("sale_items")
+}
+
+model InventoryMovement {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  productId         String   @map("product_id") @db.Uuid
+  quantity          Int
+  movementType      String   @map("movement_type") @db.VarChar(50)
+  referenceId       String?  @map("reference_id") @db.Uuid
+  notes             String?
+  businessProfileId String   @map("business_profile_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  product           Product        @relation(fields: [productId], references: [id])
+  businessProfile   BusinessProfile @relation(fields: [businessProfileId], references: [id])
+
+  @@map("inventory_movements")
+}
+
+model TaxConfiguration {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessProfileId String   @map("business_profile_id") @db.Uuid
+  taxType           String   @map("tax_type") @db.VarChar(50)
+  rate              Decimal  @db.Decimal(5,2)
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  businessProfile   BusinessProfile @relation(fields: [businessProfileId], references: [id])
+
+  @@map("tax_configurations")
+}
+
+model FiscalSequence {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessProfileId String   @map("business_profile_id") @db.Uuid
+  sequenceType      String   @map("sequence_type") @db.VarChar(50)
+  prefix            String   @db.VarChar(10)
+  currentNumber     Int      @default(1) @map("current_number")
+  endNumber         Int      @map("end_number")
+  isActive          Boolean  @default(true) @map("is_active")
+  expirationDate    DateTime @map("expiration_date") @db.Date
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  businessProfile   BusinessProfile @relation(fields: [businessProfileId], references: [id])
+
+  @@map("fiscal_sequences")
+}
+
+model FiscalDocument {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  saleId            String   @map("sale_id") @db.Uuid
+  documentNumber    String   @unique @map("document_number") @db.VarChar(50)
+  documentType      String   @map("document_type") @db.VarChar(50)
+  taxAmount         Decimal  @map("tax_amount") @db.Decimal(10,2)
+  netAmount         Decimal  @map("net_amount") @db.Decimal(10,2)
+  totalAmount       Decimal  @map("total_amount") @db.Decimal(10,2)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  sale              Sale     @relation(fields: [saleId], references: [id])
+
+  @@map("fiscal_documents")
+}
